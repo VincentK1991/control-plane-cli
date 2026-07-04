@@ -31,11 +31,11 @@ func newAuthLoginCmd() *cobra.Command {
 		Short: "Store an API key minted from the dashboard",
 		Long: "Store an API key minted from the dashboard.\n\n" +
 			"API keys themselves are only ever created or revoked in the dashboard — " +
-			"this command just saves one locally so other `cp` commands can use it.",
+			"this command just saves one locally so other `cplane` commands can use it.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			key := keyFlag
 			if key == "" {
-				key = os.Getenv("CP_API_KEY")
+				key = os.Getenv("CPLANE_API_KEY")
 			}
 			if key == "" {
 				fmt.Fprint(cmd.OutOrStdout(), "Paste your API key: ")
@@ -47,7 +47,7 @@ func newAuthLoginCmd() *cobra.Command {
 				key = strings.TrimSpace(line)
 			}
 			if key == "" {
-				return fmt.Errorf("no API key provided (use --key, CP_API_KEY, or paste one at the prompt)")
+				return fmt.Errorf("no API key provided (use --key, CPLANE_API_KEY, or paste one at the prompt)")
 			}
 
 			cfg, err := config.Load()
@@ -68,7 +68,7 @@ func newAuthLoginCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&keyFlag, "key", "", "API key value (otherwise reads CP_API_KEY or prompts)")
+	cmd.Flags().StringVar(&keyFlag, "key", "", "API key value (otherwise reads CPLANE_API_KEY or prompts)")
 	return cmd
 }
 

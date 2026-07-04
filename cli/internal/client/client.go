@@ -24,7 +24,7 @@ type Client struct {
 // keep short: POST /databases now returns as soon as the row is created
 // (status "provisioning") — the server runs Kubernetes provisioning in the
 // background rather than blocking the response on it — so no request in
-// this client legitimately takes long. `cp db create --wait` polls
+// this client legitimately takes long. `cplane db create --wait` polls
 // GET /databases/{id} instead of relying on one long-lived call.
 const requestTimeout = 30 * time.Second
 

@@ -166,7 +166,7 @@ mean a second migration. This resolves the last open question below.
    confirm it's enforced per-key regardless of caller.
 
 6. **Key management stays out of `/api/v1`.** No `POST /api/v1/api-keys`.
-   The CLI can have a `cp auth status` command that calls `GET /api/v1/me`
+   The CLI can have a `cplane auth status` command that calls `GET /api/v1/me`
    to confirm the key it's holding is valid, but creating/revoking keys is
    dashboard-only, by design, per the original ask.
 
@@ -174,12 +174,12 @@ mean a second migration. This resolves the last open question below.
 
 ### Config & auth
 
-- Env var `CP_API_KEY` takes precedence (CI-friendly, matches the
+- Env var `CPLANE_API_KEY` takes precedence (CI-friendly, matches the
   `ANTHROPIC_API_KEY`-style convention).
-- Falls back to a config file, `~/.config/cp/config.toml` (XDG on
-  Linux/macOS), written by `cp auth login --key cp_live_...` or piped via
-  stdin (`cp auth login` prompts, doesn't echo).
-- `CP_API_URL` / a `--api-url` flag for pointing at a non-default control
+- Falls back to a config file, `~/.config/cplane/config.toml` (XDG on
+  Linux/macOS), written by `cplane auth login --key cp_live_...` or piped via
+  stdin (`cplane auth login` prompts, doesn't echo).
+- `CPLANE_API_URL` / a `--api-url` flag for pointing at a non-default control
   plane (self-hosted, staging), defaulting to the production origin.
 - Config file permissions forced to `0600` on write.
 - No OS keychain integration in v1 — plain file is consistent with `~/.aws/credentials`-style tools and keeps the Go dependency graph small. Revisit if users ask for it.
@@ -209,22 +209,22 @@ cp
 Global flags: `--output table|json` (default `table`), `--api-url`,
 `--quiet`. Every command that mutates state (`db create`, `db rm`,
 `docs index`) prints the created/deleted resource ID on success so it's
-pipeable (`id=$(cp db create --output json | jq -r .instance.id)`).
+pipeable (`id=$(cplane db create --output json | jq -r .instance.id)`).
 
 ### Project layout (Cobra convention)
 
 ```
-cmd/cp/main.go              # entrypoint, calls cmd.Execute()
-cmd/cp/root.go              # root command, persistent flags, config load
-cmd/cp/auth.go
-cmd/cp/db.go
-cmd/cp/docs.go
-cmd/cp/usage.go
+cmd/cplane/main.go              # entrypoint, calls cmd.Execute()
+cmd/cplane/root.go              # root command, persistent flags, config load
+cmd/cplane/auth.go
+cmd/cplane/db.go
+cmd/cplane/docs.go
+cmd/cplane/usage.go
 internal/client/client.go   # thin REST client: bearer header, base URL, retries
 internal/client/databases.go
 internal/client/documents.go
 internal/client/usage.go
-internal/config/config.go   # read/write ~/.config/cp/config.toml
+internal/config/config.go   # read/write ~/.config/cplane/config.toml
 internal/output/table.go    # table vs JSON rendering
 ```
 
@@ -244,7 +244,7 @@ time, but that's an implementation detail, not a design blocker.
 
 ## Resolved decisions
 
-- **`cp db create` is asynchronous by default.** It returns as soon as the
+- **`cplane db create` is asynchronous by default.** It returns as soon as the
   API responds (matching the existing `201`/instance-ready or
   `202`/still-provisioning shape), printing the instance ID and status
   immediately rather than blocking. `--wait` is an opt-in flag that polls
@@ -252,12 +252,12 @@ time, but that's an implementation detail, not a design blocker.
   terminal failure state) before returning. Default-async keeps the
   command fast and composable (scriptable, pipeable); `--wait` covers the
   interactive "I just want to see it finish" case.
-- **`cp docs index` is asynchronous by default**, for the same reason and
+- **`cplane docs index` is asynchronous by default**, for the same reason and
   more emphatically so: indexing is the more expensive, more
   variable-duration operation of the two, and a default-blocking command
   would make simple scripts (e.g. indexing a batch of documents in a loop)
   needlessly slow. It returns the `jobId` immediately (matches today's
-  `202` from `POST .../documents`); `cp docs status <instance-id> <job-id>`
+  `202` from `POST .../documents`); `cplane docs status <instance-id> <job-id>`
   polls explicitly, and `--wait` on `docs index` is the same opt-in
   convenience wrapper around that polling loop.
 - **`/api/v1` is the official public API**, not CLI-internal — see

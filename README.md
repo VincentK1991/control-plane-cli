@@ -14,7 +14,7 @@ For deeper detail on each piece, see:
 
 - [`src/README.md`](src/README.md) — the web console (Astro dashboard + API)
 - [`pipelines/README.md`](pipelines/README.md) — Temporal workflows (provisioning, indexing)
-- [`cli/README.md`](cli/README.md) — the `cp` Go CLI
+- [`cli/README.md`](cli/README.md) — the `cplane` Go CLI
 - [`temporal/README.md`](temporal/README.md) — Temporal server config
 - `docs/discussion/` — design docs behind each of the above (DBaaS architecture, pipeline orchestration choice, the CLI's `/api/v1` design, usage metering)
 
@@ -152,13 +152,13 @@ structure. Both workers connect to the Temporal server started in step 1;
 
 ```sh
 cd cli
-go build -o cp ./cmd/cp
+go build -o cplane ./cmd/cplane
 
-export CP_API_KEY=<a key minted from the dashboard's API Keys page>
-export CP_API_URL=http://127.0.0.1:4321   # the web console from step 4
+export CPLANE_API_KEY=<a key minted from the dashboard's API Keys page>
+export CPLANE_API_URL=http://127.0.0.1:4321   # the web console from step 4
 
-./cp auth status
-./cp db list
+./cplane auth status
+./cplane db list
 ```
 
 See [`cli/README.md`](cli/README.md) for the full command reference and
@@ -183,13 +183,13 @@ With everything above running:
 
 ```sh
 cd cli
-go build -o /tmp/cp ./cmd/cp
-export CP_API_KEY=<your key>
-export CP_API_URL=http://127.0.0.1:4321
+go build -o /tmp/cplane ./cmd/cplane
+export CPLANE_API_KEY=<your key>
+export CPLANE_API_URL=http://127.0.0.1:4321
 
-/tmp/cp auth status
-/tmp/cp db create --name smoke-test --wait   # takes ~1 min against a real kind cluster
-/tmp/cp docs index <instance-id> --wait <<< "# Hello"
-/tmp/cp docs list <instance-id>
-/tmp/cp db rm <instance-id>
+/tmp/cplane auth status
+/tmp/cplane db create --name smoke-test --wait   # takes ~1 min against a real kind cluster
+/tmp/cplane docs index <instance-id> --wait <<< "# Hello"
+/tmp/cplane docs list <instance-id>
+/tmp/cplane db rm <instance-id>
 ```

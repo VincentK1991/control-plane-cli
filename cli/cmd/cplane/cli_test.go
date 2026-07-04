@@ -10,13 +10,13 @@ import (
 )
 
 // runCLI executes a fresh root command with args against an isolated
-// config dir and CP_API_KEY, returning combined stdout.
+// config dir and CPLANE_API_KEY, returning combined stdout.
 func runCLI(t *testing.T, apiURL string, args ...string) (string, error) {
 	t.Helper()
 	dir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", dir)
-	t.Setenv("CP_API_KEY", "cp_live_test_key")
-	t.Setenv("CP_API_URL", "")
+	t.Setenv("CPLANE_API_KEY", "cp_live_test_key")
+	t.Setenv("CPLANE_API_URL", "")
 
 	root := newRootCmd()
 	var out bytes.Buffer
@@ -229,7 +229,7 @@ func TestDocsIndexReadsStdinByDefault(t *testing.T) {
 
 	dir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", dir)
-	t.Setenv("CP_API_KEY", "cp_live_test_key")
+	t.Setenv("CPLANE_API_KEY", "cp_live_test_key")
 
 	root := newRootCmd()
 	var out bytes.Buffer
@@ -307,7 +307,7 @@ func TestMissingAPIKeyErrorsWithoutNetworkCall(t *testing.T) {
 
 	dir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", dir)
-	t.Setenv("CP_API_KEY", "")
+	t.Setenv("CPLANE_API_KEY", "")
 
 	root := newRootCmd()
 	var out bytes.Buffer

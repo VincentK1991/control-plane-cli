@@ -19,7 +19,7 @@ func TestPathHonorsXDGConfigHome(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Path() error = %v", err)
 	}
-	want := filepath.Join(dir, "cp", "config.json")
+	want := filepath.Join(dir, "cplane", "config.json")
 	if path != want {
 		t.Errorf("Path() = %q, want %q", path, want)
 	}
@@ -96,8 +96,8 @@ func TestResolvePrecedenceFlagBeatsEnvBeatsFileBeatsDefault(t *testing.T) {
 	withTempConfigDir(t)
 
 	t.Run("errors when nothing is configured", func(t *testing.T) {
-		t.Setenv("CP_API_KEY", "")
-		t.Setenv("CP_API_URL", "")
+		t.Setenv("CPLANE_API_KEY", "")
+		t.Setenv("CPLANE_API_URL", "")
 		_, err := Resolve(ResolveOptions{})
 		if err != ErrNotLoggedIn {
 			t.Errorf("Resolve() error = %v, want ErrNotLoggedIn", err)
@@ -108,8 +108,8 @@ func TestResolvePrecedenceFlagBeatsEnvBeatsFileBeatsDefault(t *testing.T) {
 		if err := Save(FileConfig{APIKey: "from-file", APIURL: "https://file.example.com"}); err != nil {
 			t.Fatal(err)
 		}
-		t.Setenv("CP_API_KEY", "")
-		t.Setenv("CP_API_URL", "")
+		t.Setenv("CPLANE_API_KEY", "")
+		t.Setenv("CPLANE_API_URL", "")
 		resolved, err := Resolve(ResolveOptions{})
 		if err != nil {
 			t.Fatalf("Resolve() error = %v", err)
@@ -123,8 +123,8 @@ func TestResolvePrecedenceFlagBeatsEnvBeatsFileBeatsDefault(t *testing.T) {
 		if err := Save(FileConfig{APIKey: "from-file", APIURL: "https://file.example.com"}); err != nil {
 			t.Fatal(err)
 		}
-		t.Setenv("CP_API_KEY", "from-env")
-		t.Setenv("CP_API_URL", "https://env.example.com")
+		t.Setenv("CPLANE_API_KEY", "from-env")
+		t.Setenv("CPLANE_API_URL", "https://env.example.com")
 		resolved, err := Resolve(ResolveOptions{})
 		if err != nil {
 			t.Fatalf("Resolve() error = %v", err)
@@ -138,8 +138,8 @@ func TestResolvePrecedenceFlagBeatsEnvBeatsFileBeatsDefault(t *testing.T) {
 		if err := Save(FileConfig{APIKey: "from-file", APIURL: "https://file.example.com"}); err != nil {
 			t.Fatal(err)
 		}
-		t.Setenv("CP_API_KEY", "from-env")
-		t.Setenv("CP_API_URL", "https://env.example.com")
+		t.Setenv("CPLANE_API_KEY", "from-env")
+		t.Setenv("CPLANE_API_URL", "https://env.example.com")
 		resolved, err := Resolve(ResolveOptions{APIKeyFlag: "from-flag", APIURLFlag: "https://flag.example.com"})
 		if err != nil {
 			t.Fatalf("Resolve() error = %v", err)
@@ -153,8 +153,8 @@ func TestResolvePrecedenceFlagBeatsEnvBeatsFileBeatsDefault(t *testing.T) {
 		if err := Save(FileConfig{APIKey: "from-file"}); err != nil {
 			t.Fatal(err)
 		}
-		t.Setenv("CP_API_KEY", "")
-		t.Setenv("CP_API_URL", "")
+		t.Setenv("CPLANE_API_KEY", "")
+		t.Setenv("CPLANE_API_URL", "")
 		resolved, err := Resolve(ResolveOptions{})
 		if err != nil {
 			t.Fatalf("Resolve() error = %v", err)

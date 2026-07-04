@@ -17,7 +17,7 @@ var (
 
 func newRootCmd() *cobra.Command {
 	root := &cobra.Command{
-		Use:           "cp",
+		Use:           "cplane",
 		Short:         "Control Plane CLI — provision databases, index documents, check usage",
 		SilenceUsage:  true,
 		SilenceErrors: true,

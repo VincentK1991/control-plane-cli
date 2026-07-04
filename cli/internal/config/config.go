@@ -13,13 +13,13 @@ import (
 
 const (
 	DefaultAPIURL = "https://api.controlplane.example.com"
-	apiKeyEnvVar  = "CP_API_KEY"
-	apiURLEnvVar  = "CP_API_URL"
+	apiKeyEnvVar  = "CPLANE_API_KEY"
+	apiURLEnvVar  = "CPLANE_API_URL"
 )
 
 // ErrNotLoggedIn is returned by Resolve when no API key can be found from
 // any source.
-var ErrNotLoggedIn = errors.New("not logged in: set CP_API_KEY or run `cp auth login`")
+var ErrNotLoggedIn = errors.New("not logged in: set CPLANE_API_KEY or run `cplane auth login`")
 
 type FileConfig struct {
 	APIKey string `json:"api_key"`
@@ -37,7 +37,7 @@ func Path() (string, error) {
 		}
 		base = filepath.Join(home, ".config")
 	}
-	return filepath.Join(base, "cp", "config.json"), nil
+	return filepath.Join(base, "cplane", "config.json"), nil
 }
 
 func Load() (FileConfig, error) {
