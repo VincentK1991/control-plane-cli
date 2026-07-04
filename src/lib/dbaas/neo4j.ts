@@ -66,6 +66,28 @@ export class DbaasError extends Error {
   }
 }
 
+/**
+ * Serializes provisioning/deletion work per instance ID within this
+ * process. Needed once provisioning can run in the background (see
+ * createNeo4jInstanceAsync): without it, a delete requested while
+ * provisioning is still in flight could run `helm uninstall` concurrently
+ * with the `helm install --wait` still in progress for the same release,
+ * which Helm itself rejects ("another operation ... is in progress"). A
+ * delete now simply queues behind any in-flight provisioning for that
+ * instance and runs once it's done, instead of racing it.
+ */
+const instanceLocks = new Map<string, Promise<unknown>>();
+
+function withInstanceLock<T>(instanceId: string, fn: () => Promise<T>): Promise<T> {
+  const prior = instanceLocks.get(instanceId) ?? Promise.resolve();
+  const settled = prior.then(fn, fn);
+  instanceLocks.set(
+    instanceId,
+    settled.catch(() => undefined),
+  );
+  return settled;
+}
+
 export async function listNeo4jInstances(userId: string, apiKeyId: string) {
   await requireActiveApiKey(userId, apiKeyId);
 
@@ -130,11 +152,40 @@ export async function getNeo4jInstanceForUser(userId: string, instanceId: string
   return result.rows[0] ?? null;
 }
 
-export async function createNeo4jInstance(
+type PendingProvisioning = {
+  record: Neo4jInstanceRecord;
+  credentials: { username: string; password: string };
+  spec: {
+    apiKeyId: string;
+    instanceId: string;
+    userId: string;
+    name: string;
+    namespace: string;
+    releaseName: string;
+    secretName: string;
+    username: string;
+    password: string;
+    storageSizeGb: number;
+    cpuRequestMillicores: number;
+    cpuLimitMillicores: number;
+    memoryRequestMb: number;
+    memoryLimitMb: number;
+    plugins: string[];
+  };
+};
+
+/**
+ * Inserts the neo4j_instances row (status 'provisioning') and returns
+ * everything needed to actually provision it in Kubernetes. Split out from
+ * the Kubernetes work itself so callers can choose to await provisioning
+ * (createNeo4jInstance, for the dashboard) or return immediately and run it
+ * in the background (createNeo4jInstanceAsync, for /api/v1).
+ */
+async function insertProvisioningRecord(
   userId: string,
   apiKeyId: string,
   name: string,
-) {
+): Promise<PendingProvisioning> {
   await requireActiveApiKey(userId, apiKeyId);
   await enforceFreeTierLimit(userId, apiKeyId);
 
@@ -196,10 +247,10 @@ export async function createNeo4jInstance(
     ],
   );
 
-  const record = inserted.rows[0];
-
-  try {
-    const kubernetes = await provisionNeo4jInKubernetes({
+  return {
+    record: inserted.rows[0],
+    credentials: { username, password },
+    spec: {
       apiKeyId,
       instanceId: id,
       userId,
@@ -215,7 +266,21 @@ export async function createNeo4jInstance(
       memoryRequestMb: defaults.memoryRequestMb,
       memoryLimitMb: defaults.memoryLimitMb,
       plugins,
-    });
+    },
+  };
+}
+
+/**
+ * Does the actual Kubernetes provisioning and lands the instance row in a
+ * terminal 'ready'/'failed' status. Never throws — provisioning failures
+ * are recorded on the row, not propagated, since by the time this runs the
+ * caller may already have returned a response referencing this instance ID.
+ */
+async function runNeo4jProvisioning(pending: PendingProvisioning): Promise<Neo4jInstanceRecord> {
+  const { record, spec } = pending;
+
+  try {
+    const kubernetes = await provisionNeo4jInKubernetes(spec);
 
     const updated = await query<Neo4jInstanceRecord>(
       `
@@ -236,9 +301,9 @@ export async function createNeo4jInstance(
         returning *
       `,
       [
-        id,
-        userId,
-        apiKeyId,
+        spec.instanceId,
+        spec.userId,
+        spec.apiKeyId,
         kubernetes.statefulsetName,
         kubernetes.serviceName,
         kubernetes.pvcName,
@@ -250,13 +315,7 @@ export async function createNeo4jInstance(
       ],
     );
 
-    return {
-      instance: updated.rows[0],
-      credentials: {
-        username,
-        password,
-      },
-    };
+    return updated.rows[0];
   } catch (error) {
     const message =
       error instanceof Error ? error.message.slice(0, 4000) : "Provisioning failed.";
@@ -266,21 +325,46 @@ export async function createNeo4jInstance(
         set status = 'failed', last_error = $2, updated_at = now()
         where id = $1
       `,
-      [id, message],
+      [spec.instanceId, message],
     );
 
     return {
-      instance: {
-        ...record,
-        status: "failed" as const,
-        last_error: message,
-      },
-      credentials: {
-        username,
-        password,
-      },
+      ...record,
+      status: "failed" as const,
+      last_error: message,
     };
   }
+}
+
+/**
+ * Provisions synchronously: the caller gets back a terminal ready/failed
+ * instance. Used by the dashboard's existing create route, whose UI shows
+ * the returned credentials immediately and doesn't poll for status changes.
+ */
+export async function createNeo4jInstance(userId: string, apiKeyId: string, name: string) {
+  const pending = await insertProvisioningRecord(userId, apiKeyId, name);
+  const instance = await withInstanceLock(pending.spec.instanceId, () => runNeo4jProvisioning(pending));
+  return { instance, credentials: pending.credentials };
+}
+
+/**
+ * Provisions asynchronously: returns as soon as the row exists (status
+ * 'provisioning'), kicking off the actual Kubernetes work in the
+ * background. Used by /api/v1, whose CLI/API callers poll
+ * GET /api/v1/databases/{id} (optionally via `cp db create --wait`) rather
+ * than blocking the create call itself for the full provisioning duration.
+ */
+export async function createNeo4jInstanceAsync(userId: string, apiKeyId: string, name: string) {
+  const pending = await insertProvisioningRecord(userId, apiKeyId, name);
+
+  withInstanceLock(pending.spec.instanceId, () => runNeo4jProvisioning(pending)).catch((error) => {
+    // runNeo4jProvisioning itself never rejects; this only guards against a
+    // future change making it throw, so a bug there can't produce an
+    // unhandled rejection in a request-less background task.
+    console.error(`Background provisioning of ${pending.spec.instanceId} failed unexpectedly:`, error);
+  });
+
+  return { instance: pending.record, credentials: pending.credentials };
 }
 
 export async function deleteNeo4jInstance(
@@ -294,56 +378,60 @@ export async function deleteNeo4jInstance(
     return null;
   }
 
-  const deleting = await query<Neo4jInstanceRecord>(
-    `
-      update neo4j_instances
-      set status = 'deleting', updated_at = now()
-      where id = $1 and user_id = $2 and api_key_id = $3
-      returning *
-    `,
-    [instanceId, userId, apiKeyId],
-  );
-
-  try {
-    await deleteNeo4jFromKubernetes({
-      namespace: instance.namespace,
-      releaseName: instance.release_name,
-      secretName: instance.secret_name,
-      instanceId: instance.id,
-      externalBoltPort: instance.external_bolt_port,
-    });
-
-    const deleted = await query<Neo4jInstanceRecord>(
+  // Queued behind any in-flight createNeo4jInstanceAsync background
+  // provisioning for this instance — see withInstanceLock's doc comment.
+  return withInstanceLock(instanceId, async () => {
+    const deleting = await query<Neo4jInstanceRecord>(
       `
         update neo4j_instances
-        set
-          status = 'deleted',
-          deleted_at = now(),
-          updated_at = now(),
-          last_backup_at = coalesce(last_backup_at, now()),
-          last_error = null
+        set status = 'deleting', updated_at = now()
         where id = $1 and user_id = $2 and api_key_id = $3
         returning *
       `,
       [instanceId, userId, apiKeyId],
     );
 
-    return deleted.rows[0];
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message.slice(0, 4000) : "Deletion failed.";
-    const failed = await query<Neo4jInstanceRecord>(
-      `
-        update neo4j_instances
-        set status = 'failed', last_error = $4, updated_at = now()
-        where id = $1 and user_id = $2 and api_key_id = $3
-        returning *
-      `,
-      [instanceId, userId, apiKeyId, message],
-    );
+    try {
+      await deleteNeo4jFromKubernetes({
+        namespace: instance.namespace,
+        releaseName: instance.release_name,
+        secretName: instance.secret_name,
+        instanceId: instance.id,
+        externalBoltPort: instance.external_bolt_port,
+      });
 
-    return failed.rows[0] ?? deleting.rows[0];
-  }
+      const deleted = await query<Neo4jInstanceRecord>(
+        `
+          update neo4j_instances
+          set
+            status = 'deleted',
+            deleted_at = now(),
+            updated_at = now(),
+            last_backup_at = coalesce(last_backup_at, now()),
+            last_error = null
+          where id = $1 and user_id = $2 and api_key_id = $3
+          returning *
+        `,
+        [instanceId, userId, apiKeyId],
+      );
+
+      return deleted.rows[0];
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message.slice(0, 4000) : "Deletion failed.";
+      const failed = await query<Neo4jInstanceRecord>(
+        `
+          update neo4j_instances
+          set status = 'failed', last_error = $4, updated_at = now()
+          where id = $1 and user_id = $2 and api_key_id = $3
+          returning *
+        `,
+        [instanceId, userId, apiKeyId, message],
+      );
+
+      return failed.rows[0] ?? deleting.rows[0];
+    }
+  });
 }
 
 async function requireActiveApiKey(userId: string, apiKeyId: string) {

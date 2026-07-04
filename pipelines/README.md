@@ -7,6 +7,14 @@ databases. See `docs/discussion/pipeline-orchestration-choice.md` and
 Temporal over Dagster, the end-to-end flow this supports, and the
 job-tracking and worker-bootstrap abstractions in `core`.
 
+See the root [`README.md`](../README.md) for where this fits in the
+overall setup order (Postgres/Temporal → this → the web console → the
+CLI). Note: `POST /api/v1/databases`'s async-return behavior (see
+[`../src/README.md`](../src/README.md)) is implemented as an in-process
+background task in `src/lib/dbaas/neo4j.ts` directly, **not** via the
+`dbaas-provisioning` workflow below — that workflow's activities are still
+the `TODO` stubs described under Status.
+
 ## Layout
 
 ```text

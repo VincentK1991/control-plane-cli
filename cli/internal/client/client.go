@@ -20,11 +20,13 @@ type Client struct {
 	HTTPClient *http.Client
 }
 
-// requestTimeout is generous because POST /databases provisions
-// synchronously (Helm install + readiness wait) before responding — a
-// short client timeout would abort a provisioning call that the server is
-// still legitimately working on.
-const requestTimeout = 3 * time.Minute
+// requestTimeout applies to every /api/v1 call uniformly. This is safe to
+// keep short: POST /databases now returns as soon as the row is created
+// (status "provisioning") — the server runs Kubernetes provisioning in the
+// background rather than blocking the response on it — so no request in
+// this client legitimately takes long. `cp db create --wait` polls
+// GET /databases/{id} instead of relying on one long-lived call.
+const requestTimeout = 30 * time.Second
 
 func New(baseURL, apiKey string) *Client {
 	return &Client{

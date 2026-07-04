@@ -120,23 +120,28 @@ describe("database lifecycle", () => {
     }
   });
 
-  it("creates, fetches, and deletes a database end to end", async () => {
+  it("creates asynchronously, returning before provisioning finishes", async () => {
     const name = `cli-v1-test-${randomUUID().slice(0, 8)}`;
 
+    const start = Date.now();
     const createRes = await fetch(url("/api/v1/databases"), {
       method: "POST",
       headers: authHeaders(),
       body: JSON.stringify({ name }),
     });
+    const elapsedMs = Date.now() - start;
 
-    // 201 if provisioning finished synchronously (kind cluster is local and
-    // fast), 202 if it's still in progress — both are valid per the OpenAPI
-    // contract this route mirrors.
-    expect([201, 202]).toContain(createRes.status);
+    // Always 202 now: createNeo4jInstanceAsync returns as soon as the row
+    // exists and runs Kubernetes provisioning in the background, so this
+    // response can never observe a terminal "ready"/"failed" status. Real
+    // provisioning against the local kind cluster takes tens of seconds
+    // (measured ~55-90s), so a fast response here is the actual behavior
+    // under test, not an artifact of a fast/slow cluster.
+    expect(createRes.status).toBe(202);
+    expect(elapsedMs).toBeLessThan(5_000);
 
     const created = await createRes.json();
-    expect(created.instance).toMatchObject({ name, tier: "free" });
-    expect(["provisioning", "ready", "failed"]).toContain(created.instance.status);
+    expect(created.instance).toMatchObject({ name, tier: "free", status: "provisioning" });
     createdInstanceId = created.instance.id;
 
     const getRes = await fetch(url(`/api/v1/databases/${createdInstanceId}`), {
@@ -145,7 +150,18 @@ describe("database lifecycle", () => {
     expect(getRes.status).toBe(200);
     const fetched = await getRes.json();
     expect(fetched.instance.id).toBe(createdInstanceId);
+  }, 15_000);
 
+  it("deletes a still-provisioning database once background provisioning finishes", async () => {
+    if (!createdInstanceId) {
+      throw new Error("previous test did not leave an instance to delete");
+    }
+
+    // Exercises the in-process lock in src/lib/dbaas/neo4j.ts directly:
+    // this DELETE is issued while the background provisioning kicked off
+    // by the previous test's create is still running, so it must queue
+    // behind it rather than racing `helm uninstall` against the still
+    // in-flight `helm install --wait` for the same release.
     const deleteRes = await fetch(url(`/api/v1/databases/${createdInstanceId}`), {
       method: "DELETE",
       headers: authHeaders(),
@@ -155,7 +171,7 @@ describe("database lifecycle", () => {
     expect(deleted.instance.status).toBe("deleted");
 
     createdInstanceId = undefined;
-  }, 120_000);
+  }, 180_000);
 
   it("404s for an instance ID that doesn't belong to this key", async () => {
     const res = await fetch(url(`/api/v1/databases/${randomUUID()}`), {

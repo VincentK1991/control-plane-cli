@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro";
-import { createNeo4jInstance, DbaasError, listNeo4jInstances } from "../../../../lib/dbaas/neo4j";
+import { createNeo4jInstanceAsync, DbaasError, listNeo4jInstances } from "../../../../lib/dbaas/neo4j";
 import { json, readJson, requireApiKey } from "../../../../lib/responses";
 
 type CreateDatabaseBody = {
@@ -36,7 +36,11 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   try {
-    const created = await createNeo4jInstance(auth.user_id, auth.api_key_id, name);
+    // Async: returns as soon as the row exists (status 'provisioning') —
+    // see docs/discussion/cli-tool.md and createNeo4jInstanceAsync's doc
+    // comment. Kubernetes provisioning continues in the background; poll
+    // GET /api/v1/databases/{id} (or `cp db create --wait`) for readiness.
+    const created = await createNeo4jInstanceAsync(auth.user_id, auth.api_key_id, name);
 
     return json(
       {
