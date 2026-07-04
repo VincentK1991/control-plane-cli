@@ -1,0 +1,21 @@
+---
+import DatabaseDetail from "../../components/DatabaseDetail";
+import "../../styles/global.css";
+
+export const prerender = false;
+
+const { instanceId } = Astro.params;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="description" content="Database detail and document upload" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Database — Control Plane Dashboard</title>
+  </head>
+  <body>
+    <DatabaseDetail client:load instanceId={instanceId as string} />
+  </body>
+</html>

@@ -1,0 +1,75 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: control-plane-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: control_plane
+    ports:
+      - "5433:5432"
+    volumes:
+      - control-plane-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d control_plane"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  temporal:
+    # temporalio/auto-setup was deprecated and never published past 1.29.7,
+    # which predates Worker heartbeats/the Workers UI page (needs 1.30+).
+    # We use the plain server image instead and provision the `temporal` /
+    # `temporal_visibility` schemas ourselves (see docs/decisions or ask in
+    # chat history for the one-off `temporal-sql-tool` commands used).
+    image: temporalio/server:${TEMPORAL_VERSION:-1.31.1}
+    container_name: control-plane-temporal
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Reuses the same Postgres instance as the app (see the `postgres`
+      # service above), in its own `temporal` / `temporal_visibility`
+      # databases, so there is no schema collision with `control_plane`.
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PWD=postgres
+      - POSTGRES_SEEDS=postgres
+      # Keep completed workflow history (provisioning runs, indexing runs)
+      # around for 30 days before Temporal's built-in retention deletes it.
+      - DEFAULT_NAMESPACE_RETENTION=720h
+      # Lets the Workers page in Temporal UI show worker status.
+      - DYNAMIC_CONFIG_FILE_PATH=/etc/temporal/config/dynamicconfig/development.yaml
+    ports:
+      - "7233:7233"
+    volumes:
+      - ./temporal/dynamicconfig:/etc/temporal/config/dynamicconfig
+
+  temporal-admin-tools:
+    image: temporalio/admin-tools:${TEMPORAL_ADMIN_TOOLS_VERSION:-1.31.1}
+    container_name: control-plane-temporal-admin-tools
+    restart: unless-stopped
+    depends_on:
+      - temporal
+    environment:
+      - TEMPORAL_CLI_ADDRESS=temporal:7233
+    stdin_open: true
+    tty: true
+
+  temporal-ui:
+    image: temporalio/ui:${TEMPORAL_UI_VERSION:-2.51.1}
+    container_name: control-plane-temporal-ui
+    restart: unless-stopped
+    depends_on:
+      - temporal
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:4321
+    ports:
+      - "8088:8080"
+
+volumes:
+  control-plane-postgres-data:

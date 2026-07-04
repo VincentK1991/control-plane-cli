@@ -1,0 +1,55 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1781243475546,
+      "tag": "0000_outstanding_doorman",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1781334305055,
+      "tag": "0001_amusing_viper",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781334349534,
+      "tag": "0002_drop_redundant_usage_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1781361041110,
+      "tag": "0003_married_adam_warlock",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1781365403871,
+      "tag": "0004_black_jack_flag",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1781382097192,
+      "tag": "0005_amused_blacklash",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1781382800000,
+      "tag": "0006_align_runtime_schema_names",
+      "breakpoints": true
+    }
+  ]
+}

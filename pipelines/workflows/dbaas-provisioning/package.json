@@ -1,0 +1,20 @@
+{
+  "name": "@pipelines/dbaas-provisioning",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/worker.js",
+  "scripts": {
+    "build": "tsc -b",
+    "worker": "tsx src/worker.ts",
+    "start:provision": "tsx src/starter.ts provision",
+    "start:delete": "tsx src/starter.ts delete"
+  },
+  "dependencies": {
+    "@pipelines/core": "*",
+    "@temporalio/workflow": "^1.11.6"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

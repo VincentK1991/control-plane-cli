@@ -1,0 +1,17 @@
+{
+  "name": "control-plane-pipelines",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "core",
+    "workflows/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "worker:dbaas-provisioning": "npm run worker --workspace workflows/dbaas-provisioning",
+    "worker:document-indexing": "npm run worker --workspace workflows/document-indexing"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}

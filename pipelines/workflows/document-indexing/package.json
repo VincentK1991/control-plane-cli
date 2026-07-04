@@ -1,0 +1,22 @@
+{
+  "name": "@pipelines/document-indexing",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/worker.js",
+  "scripts": {
+    "build": "tsc -b",
+    "worker": "tsx src/worker.ts",
+    "start": "tsx src/starter.ts"
+  },
+  "dependencies": {
+    "@pipelines/core": "*",
+    "@temporalio/client": "^1.11.6",
+    "@temporalio/workflow": "^1.11.6",
+    "pg": "^8.21.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.20.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
